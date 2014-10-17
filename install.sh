@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 set -e
 #
 # Taken from the docker script
@@ -73,12 +73,13 @@ if [ -z "$lsb_dist" ] && [ -r /etc/fedora-release ]; then
 	lsb_dist='Fedora'
 fi
 
+OPEN=open
+
 case "$lsb_dist" in
-	Fedora)
-		;;
 
 	Ubuntu|Debian|LinuxMint)
 		export DEBIAN_FRONTEND=noninteractive
+                OPEN=xdg-open
 
 		did_apt_get_update=
 		apt_get_update() {
@@ -119,33 +120,76 @@ case "$lsb_dist" in
 		echo
 		echo 'Remember that you will have to log out and back in for this to take effect!'
 		echo
-		exit 0
+                found=1
 		;;
-
 esac
+
+if [ ! $found ]; then
+    cat >&2 <<'EOF'
+
+  Either your platform is not easily detectable, is not supported by this
+  installer script.
+
+EOF
+    exit 1
+fi
 
 # Check that we have a compatible docker version
 docker_version=`docker --version`
+
+# Check that we have Python installed
+
+# Check the Python version
 
 echo >&2 "Docker version is $docker_version"
 
 # ... check compatibility...
 
-# Starting etcd in docker for service discovery
-$docker run -t -d -p 4001 -p 7001 --name="datacraticdb_etcd" coreos/etcd
+# Is the launcher running?  Try to connect to it
+LAUNCHER_OUTPUT=`curl -D - http://localhost:7331/v1/version || true`
+
+echo "launcher output is " $LAUNCHER_OUTPUT
+
+echo "launcher version is " $LAUNCHER_VERSION
+
+# Install the launcher and start it
+mkdir -p .tmp_datacraticdb
+
+# For development, use the local copy
+if [ -f ./launcher/launcher.py ]; then
+    cp ./launcher/launcher.py .tmp_datacraticdb/launcher.py
+else
+    curl https://raw.githubusercontent.com/datacratic/datacraticdb/master/launcher/launcher.py > .tmp_datacraticdb/launcher.py
+fi
 
 # Start the launcher
-$docker run datacratic/datacraticdb:plugins
+python .tmp_datacraticdb/launcher.py &
 
+# Wait for it to start
+sleep 1
 
-cat >&2 <<'EOF'
+LAUNCHER_OUTPUT=`curl -D - http://localhost:7331/v1/version`
 
-  Either your platform is not easily detectable, is not supported by this
-  installer script (yet - PRs welcome! [hack/install.sh]), or does not yet have
-  a package for Docker.  Please visit the following URL for more detailed
-  installation instructions:
+echo "launcher output is " $LAUNCHER_OUTPUT
 
-    http://docs.docker.io/en/latest/installation/
-
+# Use the launcher to start the core
+curl -X POST -H 'Content-Type: application/json' -d - http://localhost:7331/v1/services/core <<EOF
+{"container":"datacratic/datacraticdb:core"}
 EOF
-exit 1
+
+# Starting etcd in docker for service discovery
+#$docker run -t -d -p 4001 -p 7001 --name="datacraticdb_etcd" coreos/etcd
+
+# Start the core
+#$DOCKER run -p 7371:8000 -d --name "datacraticdb_core" datacratic/datacraticdb:core
+
+
+# open admin if system has gui
+if [[ false && ( $OS = "Darwin" || -n $DISPLAY ) ]]; then
+    echo "connect to http://$HOST:7371/ to access DatacraticDB UI"
+    #$OPEN http://localhost:7371/
+else
+    echo "connect to http://$HOST:7371/ to access DatacraticDB UI"
+fi
+
+
