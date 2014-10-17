@@ -173,9 +173,7 @@ LAUNCHER_OUTPUT=`curl -D - http://localhost:7331/v1/version`
 echo "launcher output is " $LAUNCHER_OUTPUT
 
 # Use the launcher to start the core
-curl -X POST -H 'Content-Type: application/json' -d - http://localhost:7331/v1/services/core <<EOF
-{"container":"datacratic/datacraticdb:core"}
-EOF
+curl -X POST -H 'Content-Type: application/json'  -d '{"container":"datacratic/datacraticdb:core"}' http://localhost:7331/v1/services/core
 
 # Starting etcd in docker for service discovery
 #$docker run -t -d -p 4001 -p 7001 --name="datacraticdb_etcd" coreos/etcd

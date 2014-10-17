@@ -77,7 +77,7 @@ class RestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
                 options = [];
                 options.extend(['--name', name])
 
-                cmdline = [ "docker", "run", "-d" ]
+                cmdline = [ "docker", "run", "-d", "-p", "8000:8000" ]
                 cmdline.extend(options)
                 cmdline.append(payload['container'])
 
